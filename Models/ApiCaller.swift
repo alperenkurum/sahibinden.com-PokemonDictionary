@@ -8,87 +8,97 @@ import UIKit
 
 class ApiCaller{
     var currentPage: Int = 0
-    var isLoading: Bool = false // burayi sil
-    func getPokemonURLs(Limit pageLimit: Int = 20) async throws -> PokemonURL {
-        isLoading.toggle()
-        let endpoint = "https://pokeapi.co/api/v2/pokemon?limit=\(pageLimit)&offset=\(currentPage*pageLimit)"
+    let baseApiURL: String = "https://pokeapi.co/api/v2/pokemon"
+    
+    func getPokemonURLs(Limit pageLimit: Int = 20) async throws -> Result <PokemonURL, ApiCallError> {
+        let endpoint = "\(baseApiURL)?limit=\(pageLimit)&offset=\(currentPage*pageLimit)"
         guard let url = URL(string: endpoint) else {
-            fatalError("Invalid URL")
+            return .failure(ApiCallError.urlConvertionFailed)
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            fatalError("EROR")
+            return .failure(ApiCallError.invalidResponse)
         }
         do{
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             currentPage+=1
-            return try decoder.decode(PokemonURL.self, from: data)
-        }catch (let error){
-            
-            fatalError("Invalid data")
+            return try .success(decoder.decode(PokemonURL.self, from: data))
+        }catch{
+            return .failure(ApiCallError.decodingFailed)
         }
     }
     
-    func getPokemonDatas(URLs urlList: PokemonURL) async throws -> [Pokemon] {
+    func getPokemonDatas(URLs urlList: PokemonURL) async throws -> Result <[Pokemon], ApiCallError> {
         var pokemonList: [Pokemon] = []
-        
         for pokemonUrl in urlList.results {
-            pokemonList.append(try await getFrontPokemonData(URL: pokemonUrl.url))
+            let result = try await getFrontPokemonData(URL: pokemonUrl.url)
+                switch result {
+                case .success(let pokemon):
+                    pokemonList.append(pokemon)
+                case .failure(let error):
+                    print("Failed to fetch \(pokemonUrl.name): \(error)")
+                    continue
+                }
         }
-        return pokemonList
+        return .success(pokemonList)
     }
     
-    func getFrontPokemonData(URL endpoint: String) async throws -> Pokemon {
+    func getFrontPokemonData(URL endpoint: String) async throws -> Result<Pokemon, ApiCallError> {
         guard let url = URL(string: endpoint) else {
-            fatalError("Invalid URL")
+            return .failure(ApiCallError.urlConvertionFailed)
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            fatalError("EROR")
+            return .failure(ApiCallError.invalidResponse)
         }
         do{
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(Pokemon.self, from: data)
+            return try .success(decoder.decode(Pokemon.self, from: data))
         }catch {
-            print(" Unexpected error: \(error)")
-            fatalError()
+            return .failure(ApiCallError.decodingFailed)
         }
     }
     
-    func getImage(urlString: String) async throws -> UIImage {
+    func getImage(urlString: String) async throws -> Result<UIImage, ApiCallError> {
         guard let url = URL(string: urlString) else {
-            fatalError("Invalid URL")
+            return .failure(.urlConvertionFailed)
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            fatalError("EROR")
+            return .failure(.invalidResponse)
         }
         guard let image = UIImage(data: data) else {
-            fatalError("Invalid URL")
+            return .success(UIImage(systemName: "photo")!)
         }
-        return image
+        return .success(image)
     }
     
-    func getPokemonDetails(ID id: Int) async throws -> PokemonDetail {
-        let urlString = "https://pokeapi.co/api/v2/pokemon/\(id)/"
+    func getPokemonDetails(ID id: Int) async throws -> Result<PokemonDetail, ApiCallError> {
+        let urlString = "\(baseApiURL)/\(id)"
         guard let url = URL(string: urlString) else {
-            fatalError("Invalid URL")
+            return .failure(ApiCallError.urlConvertionFailed)
         }
         let (data, response) = try await URLSession.shared.data(from: url)
         
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            fatalError("EROR")
+            return .failure(.invalidResponse)
         }
         do{
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(PokemonDetail.self, from: data)
+            return .success(try decoder.decode(PokemonDetail.self, from: data))
         } catch {
-            print(error)
-            fatalError("EROR")
+            return .failure(.decodingFailed)
         }
     }
+}
+
+enum ApiCallError: Error {
+    case urlConvertionFailed
+    case invalidResponse
+    case decodingFailed
+    case imageDecodingFailed
 }

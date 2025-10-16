@@ -8,7 +8,8 @@
 import UIKit
 
 protocol OnSelectionDelegate: AnyObject {
-    func selectionChanged(index: Int)
+    func selectionChanged(ID id: Int)
+    func getCount() -> Int
 }
 
 class MainCollectionViewCell: UICollectionViewCell {
@@ -16,7 +17,7 @@ class MainCollectionViewCell: UICollectionViewCell {
     static let identifier = "MainCollectionViewCell"
     private var isChecked = false
     private var isEditting = false
-    private var index: Int?
+    private var id: Int?
     
     private let myImageView: UIImageView = {
         let imageView = UIImageView()
@@ -56,11 +57,11 @@ class MainCollectionViewCell: UICollectionViewCell {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func set(with image: UIImage, with title: String, check: Bool, index: Int, selectionStarted: Bool, count: Int) {
+    func set(with image: UIImage, with title: String, check: Bool, id: Int, selectionStarted: Bool, count: Int) {
         myImageView.image = image
         titleLabel.text = title
         isChecked = check
-        self.index = index
+        self.id = id
         isEditting = selectionStarted
         selectionButton.isHidden = !isEditting
         selectionButton.setImage(UIImage(systemName: isChecked ? "checkmark.circle.fill" : "circle"), for: .normal)
@@ -105,9 +106,11 @@ class MainCollectionViewCell: UICollectionViewCell {
         selectionButton.addAction(action, for: .primaryActionTriggered)
     }
     private func buttonTapped(){
-        isChecked.toggle()
-        selectionButton.setImage(UIImage(systemName: isChecked ? "checkmark.circle": "circle"), for: .normal)
-        guard let index = index else { return }
-        delegateSelection?.selectionChanged(index: index)
+        if isChecked || delegateSelection?.getCount() ?? 4 < 3{
+            isChecked.toggle()
+            selectionButton.setImage(UIImage(systemName: isChecked ? "checkmark.circle": "circle"), for: .normal)
+            guard let id = id else { return }
+            delegateSelection?.selectionChanged(ID: id)
+        }
     }
 }
